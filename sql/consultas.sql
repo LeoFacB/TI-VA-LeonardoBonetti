@@ -101,3 +101,87 @@ GROUP BY f.idFilme, f.titulo
 HAVING COUNT(*) > 100
 ORDER BY nota_media DESC, qtd_avaliacoes DESC
 LIMIT 10;
+
+-- ===========================================================================
+-- ANALISES CRUZADAS (misturam duas dimensoes)
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- @dataset: genero_x_faixa | Genero x Faixa etaria (heatmap)
+-- 7. Nota media por genero e faixa etaria (formato longo, para heatmap)
+-- ---------------------------------------------------------------------------
+SELECT
+    fg.nomeGenero AS genero,
+    CASE u.faixaEtaria
+        WHEN 1  THEN 'Menos de 18'
+        WHEN 18 THEN '18-24'
+        WHEN 25 THEN '25-34'
+        WHEN 35 THEN '35-44'
+        WHEN 45 THEN '45-49'
+        WHEN 50 THEN '50-55'
+        WHEN 56 THEN '56+'
+    END                        AS faixa_etaria,
+    u.faixaEtaria              AS cod_faixa,
+    COUNT(*)                   AS qtd_avaliacoes,
+    ROUND(AVG(a.nota), 2)      AS nota_media
+FROM avaliacao a
+JOIN usuario u      ON u.idUsuario = a.idUsuario
+JOIN filme_genero fg ON fg.idFilme = a.idFilme
+GROUP BY fg.nomeGenero, u.faixaEtaria;
+
+-- ---------------------------------------------------------------------------
+-- @dataset: genero_x_sexo | Genero x Sexo (diferenca F-M)
+-- 8. Nota media por genero separada por sexo e a diferenca (gosto F vs M)
+-- ---------------------------------------------------------------------------
+SELECT
+    fg.nomeGenero AS genero,
+    ROUND(AVG(CASE WHEN u.sexo = 'F' THEN a.nota END), 2) AS nota_feminino,
+    ROUND(AVG(CASE WHEN u.sexo = 'M' THEN a.nota END), 2) AS nota_masculino,
+    ROUND(AVG(CASE WHEN u.sexo = 'F' THEN a.nota END)
+        - AVG(CASE WHEN u.sexo = 'M' THEN a.nota END), 2) AS dif_f_menos_m,
+    COUNT(*)                                              AS qtd_avaliacoes
+FROM avaliacao a
+JOIN usuario u       ON u.idUsuario = a.idUsuario
+JOIN filme_genero fg ON fg.idFilme = a.idFilme
+GROUP BY fg.nomeGenero
+ORDER BY dif_f_menos_m DESC;
+
+-- ---------------------------------------------------------------------------
+-- @dataset: popularidade_x_qualidade | Popularidade x Qualidade (por filme)
+-- 9. Para cada filme (>=50 avaliacoes): volume vs nota media -> grafico de bolhas
+-- ---------------------------------------------------------------------------
+SELECT
+    f.titulo,
+    COUNT(*)              AS qtd_avaliacoes,
+    ROUND(AVG(a.nota), 2) AS nota_media
+FROM avaliacao a
+JOIN filme f ON f.idFilme = a.idFilme
+GROUP BY f.idFilme, f.titulo
+HAVING COUNT(*) >= 50;
+
+-- ---------------------------------------------------------------------------
+-- @dataset: avaliacoes_por_ocupacao | Avaliacoes por ocupacao
+-- 10. Volume e nota media por ocupacao do usuario (codigos MovieLens 0-20)
+-- ---------------------------------------------------------------------------
+SELECT
+    u.codOcupacao AS cod_ocupacao,
+    CASE u.codOcupacao
+        WHEN 0  THEN 'Outro / N/A'          WHEN 1  THEN 'Academico / Educador'
+        WHEN 2  THEN 'Artista'              WHEN 3  THEN 'Administrativo'
+        WHEN 4  THEN 'Estudante (grad.)'    WHEN 5  THEN 'Atend. ao cliente'
+        WHEN 6  THEN 'Saude / Medico'       WHEN 7  THEN 'Executivo / Gerente'
+        WHEN 8  THEN 'Agricultor'           WHEN 9  THEN 'Do lar'
+        WHEN 10 THEN 'Estudante (K-12)'     WHEN 11 THEN 'Advogado'
+        WHEN 12 THEN 'Programador'          WHEN 13 THEN 'Aposentado'
+        WHEN 14 THEN 'Vendas / Marketing'   WHEN 15 THEN 'Cientista'
+        WHEN 16 THEN 'Autonomo'             WHEN 17 THEN 'Tecnico / Engenheiro'
+        WHEN 18 THEN 'Artesao'              WHEN 19 THEN 'Desempregado'
+        WHEN 20 THEN 'Escritor'
+    END                        AS ocupacao,
+    COUNT(*)                   AS qtd_avaliacoes,
+    COUNT(DISTINCT u.idUsuario) AS qtd_usuarios,
+    ROUND(AVG(a.nota), 2)      AS nota_media
+FROM avaliacao a
+JOIN usuario u ON u.idUsuario = a.idUsuario
+GROUP BY u.codOcupacao
+ORDER BY qtd_avaliacoes DESC;
