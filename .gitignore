@@ -1,0 +1,14 @@
+# Segredos
+.env
+
+# Dumps SQL soltos (o zip em dados/ é versionado)
+dados/*.sql
+initdb/*.sql
+
+# Python / editores / SO
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

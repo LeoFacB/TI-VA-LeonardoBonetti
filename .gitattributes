@@ -1,0 +1,3 @@
+# Scripts shell sempre com LF (evita quebra se clonado no Windows)
+*.sh text eol=lf
+*.zip binary

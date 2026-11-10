@@ -1,0 +1,66 @@
+services:
+  mysql:
+    image: mysql:8.0.40
+    container_name: tiva-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SUPERSET_DB_USER: ${SUPERSET_DB_USER}
+      SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD}
+      TZ: America/Sao_Paulo
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    # Sem "ports": o MySQL fica acessivel apenas pela rede interna do compose.
+    healthcheck:
+      # Conecta via TCP com o usuario so-leitura. Durante a carga inicial o
+      # entrypoint roda um servidor temporario sem rede, entao este teste so
+      # passa depois que o dump e o script 02- terminaram.
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -u\"$$SUPERSET_DB_USER\" -p\"$$SUPERSET_DB_PASSWORD\" -N -e 'SELECT COUNT(*) FROM leonardobonetti.avaliacao' | grep -qE '^[1-9]'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+  # Roda uma vez a cada "up": inicializa o Superset, cria o admin, a conexao
+  # com o MySQL e os datasets de sql/consultas.sql. Depois termina.
+  superset-init:
+    build: .
+    image: tiva-superset:4.1.1
+    container_name: tiva-superset-init
+    command: ["/bin/bash", "/app/superset_init/init.sh"]
+    environment: &superset-env
+      SUPERSET_CONFIG_PATH: /app/superset_config.py
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_ADMIN_USER: ${SUPERSET_ADMIN_USER}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      SUPERSET_DB_USER: ${SUPERSET_DB_USER}
+      SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD}
+      TZ: America/Sao_Paulo
+    volumes: &superset-volumes
+      - superset_home:/app/superset_home
+      - ./superset_config.py:/app/superset_config.py:ro
+      - ./superset_init:/app/superset_init:ro
+      - ./sql:/app/sql:ro
+      - ./export:/app/export
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  superset:
+    build: .
+    image: tiva-superset:4.1.1
+    container_name: tiva-superset
+    restart: unless-stopped
+    environment: *superset-env
+    ports:
+      - "8088:8088"
+    volumes: *superset-volumes
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+
+volumes:
+  mysql_data:
+  superset_home:
